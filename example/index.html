@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+  <meta charset="UTF-8">
+  <title>Backbone Marionette Infinite List View</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: sans-serif;
+      font-size: 14px;
+    }
+    input {
+      width: 300px;
+      padding: 3px;
+      border: 1px solid #ccc;
+    }
+    #filter {
+
+    }
+    #list {
+      width: 300px;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+    }
+    #list ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid #eee;
+      border-bottom: 1px solid #eee;
+    }
+    #list li, #list div {
+      padding: 5px;
+    }
+    #list li:nth-child(odd) {
+      background: #f5f5f5;
+    }
+  </style>
+</head>
+<body>
+  <div id="filter"></div>
+  <div id="list"></div>
+</body>
+<script src="../node_modules/jquery/dist/jquery.min.js"></script>
+<script src="../node_modules/lodash/index.js"></script>
+<script src="../node_modules/backbone/backbone-min.js"></script>
+<script src="../node_modules/backbone.marionette/lib/backbone.marionette.min.js"></script>
+<script src="../node_modules/handlebars/dist/handlebars.min.js"></script>
+<script src="../dist/infinite-list-view.js"></script>
+<script src="../dist/filtered-collection.js"></script>
+<script>
+  /**
+   *
+   */
+  var Collection = Backbone.Collection.extend({
+    sync: function(method, collection, options){
+      return '[{name: "Foo"}]';
+    }
+  });
+  var collection = new Collection();
+  var filtered = new FilteredCollection(collection);
+
+    /**
+     * Filter View
+     */
+    var FilterView = Marionette.ItemView.extend({
+      el: '#filter',
+      template: function(){
+        return '<input type="search" placeholder="search" />';
+      },
+      ui: {
+        search: 'input'
+      },
+      events: {
+        'keyup @ui.search': 'search'
+      },
+      search: function(){
+        var value = this.ui.search.val();
+        this.query(value);
+      },
+      query: _.debounce( function(value){
+        this.collection.query(value);
+      }, 149),
+    });
+    var filter = new FilterView({ collection: filtered });
+    filter.render();
+
+    /**
+     * List View
+     */
+    var Item = Marionette.ItemView.extend({
+      tagName: 'li',
+      template: Handlebars.compile('{title}')
+    });
+
+    var Empty = Marionette.ItemView.extend({
+      tagName: 'li',
+      className: 'empty',
+      template: function(){
+        return 'Empty';
+      }
+    });
+
+    var ListView = InfiniteListView.extend({
+      el: '#list',
+      childView: Item,
+      emptyView: Empty,
+      childViewContainer: 'ul'
+    });
+    var list = new ListView({ collection: filtered });
+    list.render();
+</script>
+</html>
