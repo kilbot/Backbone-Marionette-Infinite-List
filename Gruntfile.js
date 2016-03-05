@@ -63,12 +63,20 @@ module.exports = function(grunt) {
           library: 'InfiniteListView'
         }
       },
-      collection: {
+      filtered: {
         entry: './src/filtered-collection.js',
         output: {
           path: 'dist/',
           filename: 'filtered-collection.js',
           library: 'FilteredCollection'
+        }
+      },
+      dual: {
+        entry: './src/dual-collection.js',
+        output: {
+          path: 'dist/',
+          filename: 'dual-collection.js',
+          library: 'DualCollection'
         }
       }
     }
