@@ -19,33 +19,40 @@
     }
     .list {
       width: 300px;
-      max-height: 300px;
+      max-height: 200px;
       overflow-y: auto;
       border: 1px solid #ccc;
     }
-    .list > div ul {
+    .list-infinite ul {
       margin: 0;
       padding: 0;
       list-style: none;
       border-top: 1px solid #eee;
       border-bottom: 1px solid #eee;
     }
-    .list > div li, .list > div div {
-      padding: 5px;
+    .list-infinite li, .list-infinite div {
+      padding: 10px;
     }
-    .list > div li:nth-child(odd) {
+    .list-infinite li:nth-child(odd) {
       background: #f5f5f5;
+    }
+    .list-infinite > div:first-of-type, .list-infinite > div:last-of-type {
+      display: none;
+    }
+    .list-infinite.loading > div:last-of-type {
+      display: block;
     }
   </style>
 </head>
 <body>
   <div id="app"></div>
 </body>
-<script src="../node_modules/jquery/dist/jquery.min.js"></script>
+<script src="../node_modules/jquery/dist/jquery.js"></script>
 <script src="../node_modules/lodash/index.js"></script>
-<script src="../node_modules/backbone/backbone-min.js"></script>
-<script src="../node_modules/backbone.marionette/lib/backbone.marionette.min.js"></script>
-<script src="../node_modules/handlebars/dist/handlebars.min.js"></script>
+<script src="../node_modules/backbone/backbone.js"></script>
+<script src="../node_modules/backbone.marionette/lib/backbone.marionette.js"></script>
+<script src="../node_modules/handlebars/dist/handlebars.js"></script>
+<script src="../node_modules/backbone.obscura/backbone.obscura.js"></script>
 <script src="../dist/infinite-list-view.js"></script>
 <script src="../dist/filtered-collection.js"></script>
 <script src="../dist/dual-collection.js"></script>
@@ -118,7 +125,7 @@
     },
     onRender: function(){
       var filter = new FilterView({ collection: filtered });
-      var list = new ListView({ collection: collection });
+      var list = new ListView({ collection: filtered });
       this.getRegion('filter').show(filter);
       this.getRegion('list').show(list);
     }

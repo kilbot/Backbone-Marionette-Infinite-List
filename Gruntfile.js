@@ -51,6 +51,8 @@ module.exports = function(grunt) {
         externals: {
           jquery: 'jQuery',
           lodash: '_',
+          underscore: '_',
+          backbone: 'Backbone',
           'backbone.marionette': 'Marionette',
           handlebars: 'Handlebars'
         }

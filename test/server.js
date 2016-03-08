@@ -1,7 +1,6 @@
 var port = 3000;
 var jsonServer = require('json-server')
 var open = require('open');
-var pause = require('connect-pause');
 
 // Returns an Express server
 var server = jsonServer.create();
@@ -21,7 +20,7 @@ var router = jsonServer.router(routes);
 router.render = function (req, res) {
   setTimeout(function(){
     res.send(res.locals.data);
-  },2000);
+  },3000);
 };
 server.use('/api', router);
 

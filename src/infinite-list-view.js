@@ -5,6 +5,10 @@ var Tmpl = require('./infinite-list-view.hbs');
 module.exports = Mn.CompositeView.extend({
   template: hbs.compile(Tmpl),
 
+  initialize: function(){
+    _.bindAll(this, 'onScroll', 'loadMore', 'getOverflow');
+  },
+
   onShow: function(){
     this.container = this.$el.parent()[0];
     this.$el.parent().scroll( _.throttle( this.onScroll, 250 ) );
@@ -30,6 +34,24 @@ module.exports = Mn.CompositeView.extend({
   },
 
   loadMore: function() {
-    this.collection.fetch({ remote: true });
+    if(this.loading){
+      return;
+    }
+    var self = this;
+    this.startLoading();
+    this.collection.superset().fetch({ remote: true })
+      .then(function(){
+        self.endLoading();
+      });
+  },
+
+  startLoading: function(){
+    this.loading = true;
+    this.$el.addClass('loading');
+  },
+
+  endLoading: function(){
+    this.loading = false;
+    this.$el.removeClass('loading');
   }
 });
