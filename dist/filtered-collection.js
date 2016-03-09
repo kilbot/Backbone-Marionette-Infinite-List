@@ -49,10 +49,9 @@ var FilteredCollection =
 	var _ = __webpack_require__(1);
 	var Backbone = __webpack_require__(2);
 	var FilteredCollection = __webpack_require__(3);
-	var SortedCollection = __webpack_require__(6);
+	var SortedCollection = __webpack_require__(7);
 	var PaginatedCollection = __webpack_require__(9);
-	var proxyCollection = __webpack_require__(7);
-	//var query = require('backbone-query');
+	var proxyCollection = __webpack_require__(4);
 
 	//
 	var proxyEvents = function proxyEvents(from, eventNames) {
@@ -109,11 +108,7 @@ var FilteredCollection =
 	  'resetFilters',
 	  'refilter',
 	  'hasFilter',
-	  'getFilters',
-	  'query',
-	  'getQuery',
-	  'getTokens',
-	  'getRemoteFilter'
+	  'getFilters'
 	];
 	var filteredEvents = [
 	  'filtered:add',
@@ -204,64 +199,6 @@ var FilteredCollection =
 	module.exports = Obscura;
 	/* jshint +W071, +W003, +W021 */
 
-	//var FilteredCollection = require('backbone.obscura');
-	//var query = require('backbone-query');
-	//
-	//var methods = {
-	//
-	//  query: function (filterName, filter) {
-	//    if( _.isUndefined(filter) ) {
-	//      filter = filterName;
-	//      filterName = 'search';
-	//    }
-	//    this._query = filter;
-	//    if( filter === '' ){
-	//      return this.removeFilter(filterName);
-	//    }
-	//    return this.filterBy(filterName,
-	//      _.bind( query, this, filter )
-	//    );
-	//  },
-	//
-	//  getQuery: function(){
-	//    return this._query;
-	//  },
-	//
-	//  getTokens: function(){
-	//    return this._tokens;
-	//  },
-	//
-	//  getRemoteFilter: function(){
-	//    if(!this._tokens){
-	//      return;
-	//    }
-	//
-	//    var filter = {
-	//      'not_in': this.pluck('id').join(',')
-	//    };
-	//
-	//    _.each(this._tokens, function(token){
-	//
-	//      // simple search
-	//      if(token.type === 'string'){
-	//        filter.q = token.query;
-	//      }
-	//
-	//      // simple prefix search
-	//      if(token.type === 'prefix'){
-	//        filter[token.prefix] = token.query;
-	//      }
-	//
-	//    });
-	//
-	//    return filter;
-	//  }
-	//
-	//};
-	//
-	//_.extend(FilteredCollection.prototype, methods);
-	//module.exports = FilteredCollection;
-
 /***/ },
 /* 1 */
 /***/ function(module, exports) {
@@ -281,7 +218,9 @@ var FilteredCollection =
 	var _ = __webpack_require__(1);
 	var Backbone = __webpack_require__(2);
 	var proxyCollection = __webpack_require__(4);
-	var createFilter = __webpack_require__(5);
+	var backboneQuery = __webpack_require__(5);
+	var Parser = __webpack_require__(6);
+	var parse = new Parser();
 
 	// Beware of `this`
 	// All of the following functions are meant to be called in the context
@@ -327,7 +266,7 @@ var FilteredCollection =
 	    if (this._filters.hasOwnProperty(filterName)) {
 	      // if we haven't already calculated this, calculate it and cache
 	      if (!cache.hasOwnProperty(filterName)) {
-	        cache[filterName] = this._filters[filterName].fn(model);
+	        cache[filterName] = this._filters[filterName].fn(model, this._filters[filterName].tokens);
 	      }
 	      if (!cache[filterName]) {
 	        return false;
@@ -432,16 +371,46 @@ var FilteredCollection =
 	  defaultFilterName: '__default',
 
 	  filterBy: function(filterName, filter) {
+	    var filterObj;
+
 	    // Allow the user to skip the filter name if they're only using one filter
 	    if (!filter) {
 	      filter = filterName;
 	      filterName = this.defaultFilterName;
 	    }
 
-	    addFilter.call(this, filterName, createFilter(filter));
+	    if (_.isFunction(filter)){
+	      filterObj = { fn: filter };
+	    } else {
+	      filterObj = {
+	        fn: backboneQuery,
+	        tokens: this.parseFilter(filter)
+	      }
+	    }
+
+	    addFilter.call(this, filterName, filterObj);
 
 	    execFilter.call(this);
 	    return this;
+	  },
+
+	  parseFilter: function(filter){
+	    if (_.isArray(filter)) {
+	      return filter;
+	    }
+	    if (_.isString(filter)) {
+	      return parse(filter);
+	    }
+	    if (_.isObject(filter)) {
+	      return _.reduce(filter, function(result, value, key){
+	        result.push({
+	          type: 'prefix',
+	          prefix: key,
+	          query: value
+	        });
+	        return result;
+	      }, []);
+	    }
 	  },
 
 	  removeFilter: function(filterName) {
@@ -512,7 +481,6 @@ var FilteredCollection =
 /* 4 */
 /***/ function(module, exports, __webpack_require__) {
 
-	
 	var _ = __webpack_require__(1);
 	var Backbone = __webpack_require__(2);
 
@@ -545,17 +513,17 @@ var FilteredCollection =
 	      target.models = from.models;
 	    }
 
-	    if (_.contains(eventWhiteList, eventName)) {
-	      if (_.contains(['add', 'remove', 'destroy'], eventName)) {
+	    if (_.includes(eventWhiteList, eventName)) {
+	      if (_.includes(['add', 'remove', 'destroy'], eventName)) {
 	        args[2] = target;
-	      } else if (_.contains(['reset', 'sort'], eventName)) {
+	      } else if (_.includes(['reset', 'sort'], eventName)) {
 	        args[1] = target;
 	      }
 	      target.trigger.apply(this, args);
 	    } else if (isChangeEvent) {
 	      // In some cases I was seeing change events fired after the model
 	      // had already been removed from the collection.
-	      if (target.contains(args[1])) {
+	      if (target.includes(args[1])) {
 	        target.trigger.apply(this, args);
 	      }
 	    }
@@ -564,7 +532,7 @@ var FilteredCollection =
 	  var methods = {};
 
 	  _.each(_.functions(Backbone.Collection.prototype), function(method) {
-	    if (!_.contains(blacklistedMethods, method)) {
+	    if (!_.includes(blacklistedMethods, method)) {
 	      methods[method] = function() {
 	        return from[method].apply(from, arguments);
 	      };
@@ -583,104 +551,412 @@ var FilteredCollection =
 
 	module.exports = proxyCollection;
 
-
-
 /***/ },
 /* 5 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var _ = __webpack_require__(1);
 
-	// Converts a key and value into a function that accepts a model
-	// and returns a boolean.
-	function convertKeyValueToFunction(key, value) {
-	  return function(model) {
-	    return model.get(key) === value;
-	  };
+	function toType(obj) {
+	  return ({}).toString.call(obj).match(/\s([a-z|A-Z]+)/)[1].toLowerCase();
 	}
 
-	// Converts a key and an associated filter function into a function
-	// that accepts a model and returns a boolean.
-	function convertKeyFunctionToFunction(key, fn) {
-	  return function(model) {
-	    return fn(model.get(key));
-	  };
-	}
+	/**
+	 * Helper methods for matching tokens
+	 */
+	var methods = {
 
-	function createFilterObject(filterFunction, keys) {
-	  // Make sure the keys value is either an array or null
-	  if (!_.isArray(keys)) {
-	    keys = null;
-	  }
-	  return { fn: filterFunction, keys: keys };
-	}
+	  /**
+	   * Token type `string`
+	   * @return {Boolean}
+	   */
+	  string: function(token, model){
+	    token = token || {};
+	    if(!_.isString(token.query)){ return false; }
 
-	// Accepts an object in the form of:
-	//
-	//   {
-	//     key: value,
-	//     key: function(val) { ... }
-	//   }
-	//
-	// and turns it into a function that accepts a model an returns a
-	// boolean + a list of the keys that the function depends on.
-	function createFilterFromObject(filterObj) {
-	  var keys = _.keys(filterObj);
+	    var attributes = _.chain(model.fields || ['title'])
+	      .map(function(key){
+	        return model.get(key); // allows nested get
+	      })
+	      .compact()
+	      .value();
 
-	  var filterFunctions = _.map(keys, function(key) {
-	    var val = filterObj[key];
-	    if (_.isFunction(val)) {
-	      return convertKeyFunctionToFunction(key, val);
+	    var self = this;
+	    return _.some( attributes, function( attribute ) {
+	      return self._partialString(attribute, token.query.toLowerCase());
+	    });
+	  },
+
+	  /**
+	   * Token type `prefix`
+	   * @return {Boolean}
+	   */
+	  prefix: function(token, model){
+	    token = token || {};
+	    if(_.isFunction(token.query)){
+	      return token.query(model.get(token.prefix));
 	    }
-	    return convertKeyValueToFunction(key, val);
+
+	    if(!_.isString(token.query)){
+	      token.query = token.query.toString();
+	    }
+
+	    var attr = model.get(token.prefix),
+	        type = toType(attr);
+
+	    // _boolean, _array etc
+	    if(this.hasOwnProperty('_' + type)){
+	      return this['_' + type](attr, token.query.toLowerCase());
+	    }
+	  },
+
+	  /**
+	   * Token type `or`
+	   * @return {Boolean}
+	   */
+	  or: function(token, model){
+	    var self = this;
+	    return _.some(token.queries, function(t){
+	      return self[t.type](t, model);
+	    });
+	  },
+
+	  _string: function(str, value){
+	    return str.toLowerCase() === value;
+	  },
+
+	  _partialString: function(str, value){
+	    return str.toLowerCase().indexOf( value ) !== -1;
+	  },
+
+	  _number: function(number, value){
+	    return number.toString() === value;
+	  },
+
+	  _partialNumber: function(number, value){
+	    return number.toString().indexOf( value ) !== -1;
+	  },
+
+	  _boolean: function(bool, value){
+	    if(value === 'true'){
+	      return bool === true;
+	    } else if (value === 'false'){
+	      return bool === false;
+	    }
+	    return false;
+	  },
+
+	  _array: function(arr, value){
+	    return _.some(arr, function(elem){
+	      return elem.toLowerCase() === value;
+	    });
+	  }
+
+	};
+
+	module.exports = function(model, filterArray){
+	  // match tokens
+	  // todo: all = AND, any = OR
+	  return _.every(filterArray, function(filter){
+	    return methods[filter.type](filter, model);
 	  });
-
-	  // Iterate through each of the generated filter functions. If any
-	  // are false, kill the computation and return false. The function
-	  // is only true if all of the subfunctions are true.
-	  var filterFunction = function(model) {
-	    for (var i = 0; i < filterFunctions.length; i++) {
-	      if (!filterFunctions[i](model)) {
-	        return false;
-	      }
-	    }
-	    return true;
-	  };
-
-	  return createFilterObject(filterFunction, keys);
-	}
-
-	// Expects one of the following:
-	//
-	//   - A filter function that accepts a model + (optional) array of
-	//     keys to listen to changes for or null)
-	//   - An object describing a filter
-	function createFilter(filter, keys) {
-	  // This must go first because _.isObject(fn) === true
-	  if (_.isFunction(filter)) {
-	    return createFilterObject(filter, keys);
-	  }
-
-	  // If the filter is an object describing a filter, generate the
-	  // appropriate function.
-	  if (_.isObject(filter)) {
-	    return createFilterFromObject(filter);
-	  }
-	}
-
-	module.exports = createFilter;
-
-
+	};
 
 /***/ },
 /* 6 */
 /***/ function(module, exports, __webpack_require__) {
 
+	/* jshint -W071, -W074 */
+	var _ = __webpack_require__(1);
+
+	/**
+	 *
+	 * @param options
+	 * @constructor
+	 */
+	function Parser(options){
+	  this.options = options || {};
+	  if (!this.options.instance) {
+	    return this.parse.bind(this);
+	  }
+	}
+
+	/**
+	 * Regex for special characters
+	 */
+	var regex = {
+	  QUOTES      : /['"`]/,       // quotes
+	  SPACES      : /[ \t\r\n]/,   // spaces
+	  FLAGS       : /[~\+#!\*\/]/, // flags
+	  SCREEN      : /[\\]/,        // screen
+	  GROUP_OPEN  : /\(/,          // group openers
+	  GROUP_CLOSE : /\)/,          // group endings
+	  OR          : /\|/,          // logical OR
+	  PREFIX      : /:/,           // divider between prefix and value
+	  RANGE       : /-/,           // divider between values in range
+	  OR_OPEN     : /\[/,          // OR group openers
+	  OR_CLOSE    : /]/            // OR group endings
+	};
+
+	/**
+	 * Returns first regex match for given character
+	 * note: order is important!
+	 * @param character
+	 */
+	function matchRegex(character){
+	  var match;
+
+	  _.some([
+	    'SCREEN',
+	    'OR_OPEN',
+	    'OR_CLOSE',
+	    'GROUP_OPEN',
+	    'GROUP_CLOSE',
+	    'OR',
+	    'PREFIX',
+	    'RANGE',
+	    'SPACES',
+	    'QUOTES',
+	    'FLAGS'
+	  ], function(key){
+	    if(regex[key].test(character)){
+	      match = key;
+	      return true;
+	    } else {
+	      match = undefined;
+	      return false;
+	    }
+	  });
+
+	  return match;
+	}
+
+	/**
+	 *
+	 */
+	function logicalOr(parts){
+	  var p2 = parts.pop(),
+	      p1 = parts.pop();
+
+	  parts.push({
+	    type: 'or',
+	    queries: [ p1, p2 ]
+	  });
+	}
+
+	/**
+	 *
+	 * @param options
+	 */
+	function appendPart(opts){
+	  var part = opts.part || {};
+
+	  if(!opts.hasarg){ return; }
+
+	  if (['range', 'prange'].indexOf(part.type) >= 0) {
+	    if(opts.buffer && _.isNaN(parseFloat(opts.buffer))){
+	      part = {};
+	      part.type = 'string';
+	      part.query = '-' + opts.buffer;
+	    } else {
+	      part.to = opts.buffer;
+	    }
+	  } else if (opts.buffer && opts.buffer.length) {
+	    part.query = opts.buffer;
+	  }
+
+	  if (!part.type) {
+	    part.type = part.prefix ? 'prefix' : 'string';
+	  }
+
+	  opts.parts.push(part);
+
+	  if (opts.or_at_next_arg && (opts.or_at_next_arg + 1 === opts.parts.length)){
+	    logicalOr(opts.parts);
+	    opts.or_at_next_arg = 0;
+	  }
+
+	  opts.part = {};
+	  opts.buffer = '';
+	  opts.hasarg = false;
+
+	}
+
+	/**
+	 *
+	 * @param options
+	 * @param quote
+	 */
+	function inQuote(opts, quote){
+	  if(this._input.length === 0){
+	    return;
+	  }
+
+	  opts.character = this._input.shift();
+
+	  if (opts.character === quote) {
+	    appendPart.call(this, opts);
+	  } else {
+	    opts.buffer += opts.character;
+	    opts.hasarg = true;
+	    inQuote.call(this, opts, quote);
+	  }
+	}
+
+	/**
+	 *
+	 */
+	var matches = {
+
+	  screen: function(opts){
+	    opts.screen = true;
+	  },
+
+	  or_open: function(opts){
+	    if (opts.hasarg) {
+	      opts.buffer += opts.character;
+	    } else {
+	      opts.part.type = 'or';
+	      opts.part.queries = this.parse(this._input.join(''), true);
+	      if (opts.part.queries && opts.part.queries.length) {
+	        opts.hasarg = true;
+	        appendPart.call(this, opts);
+	      }
+	    }
+	  },
+
+	  or_close: function(opts){
+	    opts.close = true;
+	  },
+
+	  group_open: function(opts){
+	    if (opts.hasarg) {
+	      opts.buffer += opts.character;
+	    } else {
+	      opts.part.type = 'and';
+	      opts.part.queries = this.parse(this._input.join(''), true);
+	      if (opts.part.queries && opts.part.queries.length) {
+	        opts.hasarg = true;
+	        appendPart.call(this, opts);
+	      }
+	    }
+	  },
+
+	  group_close: function(opts){
+	    if(opts.open){
+	      opts.close = true;
+	      opts.open = undefined;
+	    } else {
+	      opts.buffer += opts.character;
+	    }
+	  },
+
+	  or: function(opts){
+	    opts.or_at_next_arg = opts.parts.length;
+	    if (opts.hasarg) {
+	      opts.or_at_next_arg += 1;
+	      appendPart.call(this, opts);
+	    }
+	  },
+
+	  prefix: function(opts){
+	    opts.part.prefix = opts.buffer;
+	    opts.part.type = 'prefix';
+	    opts.buffer = '';
+	    opts.hasarg = true;
+	  },
+
+	  range: function(opts){
+	    if(opts.buffer && _.isNaN(parseFloat(opts.buffer))){
+	      opts.buffer += opts.character;
+	      return;
+	    }
+	    if (opts.part.type && (opts.part.type === 'prefix')) {
+	      opts.part.type = 'prange';
+	    } else {
+	      opts.part.type = 'range';
+	    }
+	    opts.part.from = opts.buffer;
+	    opts.buffer = '';
+	    opts.hasarg = true;
+	  },
+
+	  spaces: function(opts){
+	    appendPart.call(this, opts);
+	  },
+
+	  quotes: function(opts){
+	    if (opts.buffer.length) {
+	      opts.buffer += opts.character;
+	      opts.hasarg = true;
+	    } else {
+	      inQuote.call(this, opts, opts.character);
+	    }
+	  },
+
+	  flags: function(opts){
+	    if (!opts.buffer.length) {
+	      if (!opts.part.flags) { opts.part.flags = []; }
+	      opts.part.flags.push(opts.character);
+	    } else {
+	      opts.buffer += opts.character;
+	    }
+	  }
+	};
+
+	/**
+	 *
+	 * @param options
+	 */
+	function next(opts){
+	  opts.character = this._input.shift();
+	  var match = matchRegex.call(this, opts.character);
+	  if(match && !opts.screen){
+	    matches[match.toLowerCase()].call(this, opts);
+	  } else {
+	    opts.buffer += opts.character;
+	    opts.hasarg = true;
+	    opts.screen = false;
+	  }
+	  if(this._input.length > 0 && !opts.close){
+	    next.call(this, opts);
+	  } else {
+	    opts.close = undefined;
+	    return;
+	  }
+	}
+
+	Parser.prototype.parse = function(input, open) {
+	  var opts = {
+	    parts   : [],
+	    part    : {},
+	    open    : open,
+	    buffer  : '',
+	    hasarg  : false
+	  };
+
+	  if (!input || !input.length || (typeof input !== 'string')) {
+	    return opts.parts;
+	  }
+
+	  this._input = input.split('');
+	  next.call(this, opts);
+	  appendPart.call(this, opts);
+	  return opts.parts;
+	};
+
+	module.exports = Parser;
+	/* jshint +W071, +W074 */
+
+/***/ },
+/* 7 */
+/***/ function(module, exports, __webpack_require__) {
+
 	
 	var _ = __webpack_require__(1);
 	var Backbone =__webpack_require__(2);
-	var proxyCollection = __webpack_require__(7);
-	var reverseSortedIndex = __webpack_require__(8);
+	var proxyCollection = __webpack_require__(4);
+	var sortedIndex = __webpack_require__(8);
 
 	function lookupIterator(value) {
 	  return _.isFunction(value) ? value : function(obj){ return obj.get(value); };
@@ -690,11 +966,7 @@ var FilteredCollection =
 	  if (!this._comparator) {
 	    return this._superset.indexOf(model);
 	  } else {
-	    if (!this._reverse) {
-	      return _.sortedIndex(this._collection.toArray(), model, lookupIterator(this._comparator));
-	    } else {
-	      return reverseSortedIndex(this._collection.toArray(), model, lookupIterator(this._comparator));
-	    }
+	    return sortedIndex(this._collection.models, model, lookupIterator(this._comparator), this._reverse);
 	  }
 	}
 
@@ -722,7 +994,13 @@ var FilteredCollection =
 	    return;
 	  }
 
-	  var newOrder = this._superset.sortBy(this._comparator);
+	  // Evaluate the type of comparator based on http://backbonejs.org/#Collection-comparator
+	  var newOrder;
+	  if (_.isString(this._comparator) || this._comparator.length === 1) {
+	    newOrder = this._superset.sortBy(this._comparator);
+	  } else {
+	    newOrder = this._superset.models.sort(this._comparator);
+	  }
 	  this._collection.reset(this._reverse ? newOrder.reverse() : newOrder);
 	}
 
@@ -795,83 +1073,6 @@ var FilteredCollection =
 
 
 /***/ },
-/* 7 */
-/***/ function(module, exports, __webpack_require__) {
-
-	
-	var _ = __webpack_require__(1);
-	var Backbone = __webpack_require__(2);
-
-	// Methods in the collection prototype that we won't expose
-	var blacklistedMethods = [
-	  "_onModelEvent", "_prepareModel", "_removeReference", "_reset", "add",
-	  "initialize", "sync", "remove", "reset", "set", "push", "pop", "unshift",
-	  "shift", "sort", "parse", "fetch", "create", "model", "off", "on",
-	  "listenTo", "listenToOnce", "bind", "trigger", "once", "stopListening"
-	];
-
-	var eventWhiteList = [
-	  'add', 'remove', 'reset', 'sort', 'destroy', 'sync', 'request', 'error'
-	];
-
-	function proxyCollection(from, target) {
-
-	  function updateLength() {
-	    target.length = from.length;
-	  }
-
-	  function pipeEvents(eventName) {
-	    var args = _.toArray(arguments);
-	    var isChangeEvent = eventName === 'change' ||
-	                        eventName.slice(0, 7) === 'change:';
-
-	    // In the case of a `reset` event, the Collection.models reference
-	    // is updated to a new array, so we need to update our reference.
-	    if (eventName === 'reset') {
-	      target.models = from.models;
-	    }
-
-	    if (_.contains(eventWhiteList, eventName)) {
-	      if (_.contains(['add', 'remove', 'destroy'], eventName)) {
-	        args[2] = target;
-	      } else if (_.contains(['reset', 'sort'], eventName)) {
-	        args[1] = target;
-	      }
-	      target.trigger.apply(this, args);
-	    } else if (isChangeEvent) {
-	      // In some cases I was seeing change events fired after the model
-	      // had already been removed from the collection.
-	      if (target.contains(args[1])) {
-	        target.trigger.apply(this, args);
-	      }
-	    }
-	  }
-
-	  var methods = {};
-
-	  _.each(_.functions(Backbone.Collection.prototype), function(method) {
-	    if (!_.contains(blacklistedMethods, method)) {
-	      methods[method] = function() {
-	        return from[method].apply(from, arguments);
-	      };
-	    }
-	  });
-
-	  _.extend(target, Backbone.Events, methods);
-
-	  target.listenTo(from, 'all', updateLength);
-	  target.listenTo(from, 'all', pipeEvents);
-	  target.models = from.models;
-
-	  updateLength();
-	  return target;
-	}
-
-	module.exports = proxyCollection;
-
-
-
-/***/ },
 /* 8 */
 /***/ function(module, exports, __webpack_require__) {
 
@@ -884,46 +1085,81 @@ var FilteredCollection =
 	// modification of the underscore / backbone code to do the same thing
 	// but descending.
 
-	function lookupIterator(value) {
-	  return _.isFunction(value) ? value : function(obj){ return obj[value]; };
+	function comparatorAdapter(fieldExtractor, reverse) {
+	  return function(left, right) {
+	    var l = fieldExtractor(left);
+	    var r = fieldExtractor(right);
+
+	    if(l === r) return 0;
+
+	    return reverse ? (l < r ? 1 : -1) : (l < r ? -1 : 1);
+	  };
 	}
 
-	function reverseSortedIndex(array, obj, iterator, context) {
-	  iterator = iterator == null ? _.identity : lookupIterator(iterator);
-	  var value = iterator.call(context, obj);
+	function lookupIterator(value, reverse) {
+	  return value.length === 2 ? value : comparatorAdapter(value, reverse);
+	}
+
+	function sortedIndex(array, obj, iterator, reverse) {
+	  iterator = iterator === null ? _.identity : lookupIterator(iterator, reverse);
+
 	  var low = 0, high = array.length;
 	  while (low < high) {
-	    var mid = (low + high) >>> 1;
-	    iterator.call(context, array[mid]) < value ? high = mid : low = mid + 1;
+	      var mid = (low + high) >>> 1;
+	    if(iterator(array[mid], obj) < 0) {
+	      low = mid + 1;
+	    } else {
+	      high = mid;
+	    }
 	  }
+
 	  return low;
 	}
 
-	module.exports = reverseSortedIndex;
+	module.exports = sortedIndex;
 
 
 /***/ },
 /* 9 */
 /***/ function(module, exports, __webpack_require__) {
 
-	
 	var _ = __webpack_require__(1);
 	var Backbone = __webpack_require__(2);
-	var proxyCollection = __webpack_require__(7);
+	var proxyCollection = __webpack_require__(4);
 
 	function getPageLimits() {
-	  var start = this.getPage() * this.getPerPage();
-	  var end = start + this.getPerPage();
+	  if(this._infinite){
+	    var start = 0;
+	    var end = this._collection.length;
+	  } else {
+	    var start = this.getPage() * this.getPerPage();
+	    var end = start + this.getPerPage();
+	  }
 	  return [start, end];
 	}
 
 	function updatePagination() {
 	  var pages = getPageLimits.call(this);
-	  this._collection.reset(this.superset().slice(pages[0], pages[1]));
+	  return this._collection.reset(this.superset().slice(pages[0], pages[1]));
+	}
+
+	function infintePagination() {
+	  var start = 0;
+	  var end = this._collection.length + this.getPerPage();
+	  return this._collection.add(this.superset().slice(start, end));
+	}
+
+	function calcPages() {
+	  var perPage = this.getPerPage();
+	  var length = this.superset().length - this._collection.length;
+
+	  var totalPages = length % perPage === 0 ?
+	    (length / perPage) : Math.floor(length / perPage) + 1;
+
+	  return totalPages + 1;
 	}
 
 	function updateNumPages() {
-	  var currentNumPages = this._totalPages;
 	  var length = this.superset().length;
 	  var perPage = this.getPerPage();
 
@@ -950,6 +1186,9 @@ var FilteredCollection =
 	}
 
 	function recalculatePagination() {
+	  // reset infinite page
+	  this._infinite = false;
+
 	  if (updateNumPages.call(this)) { return; }
 	  updatePagination.call(this);
 	}
@@ -985,7 +1224,13 @@ var FilteredCollection =
 	  // is a bottleneck on the total size of collections. I was getting
 	  // slow unit tests around 30,000 models / page in Firefox.
 	  var toAdd = difference(this.superset().slice(start, end), this._collection.toArray());
-	  var toRemove = difference(this._collection.toArray(), this.superset().slice(start, end));
+
+	  var infinite = this._infinite && options.add;
+	  var toRemove;
+
+	  if(!infinite){
+	    toRemove = difference(this._collection.toArray(), this.superset().slice(start, end));
+	  }
 
 	  if (toRemove) {
 	    this._collection.remove(toRemove);
@@ -996,7 +1241,7 @@ var FilteredCollection =
 	      at: this.superset().indexOf(toAdd) - start
 	    });
 	  }
-	}
+	};
 
 	function Paginated(superset, options) {
 	  // Save a reference to the original collection
@@ -1017,6 +1262,7 @@ var FilteredCollection =
 	var methods = {
 
 	  removePagination: function() {
+	    this._infinite = false;
 	    this.setPerPage(null);
 	    return this;
 	  },
@@ -1035,6 +1281,10 @@ var FilteredCollection =
 	  },
 
 	  setPage: function(page) {
+
+	    // reset infinite page
+	    this._infinite = false;
+
 	    // The lowest page we could set
 	    var lowerLimit = 0;
 	    // The highest page we could set
@@ -1058,7 +1308,11 @@ var FilteredCollection =
 	  },
 
 	  getNumPages: function() {
-	    return this._totalPages;
+	    if(this._infinite){
+	      return calcPages.call(this);
+	    } else {
+	      return this._totalPages;
+	    }
 	  },
 
 	  getPage: function() {
@@ -1107,8 +1361,17 @@ var FilteredCollection =
 	    this._page = 0;
 	    this._totalPages = 0;
 	    this.length = 0;
+	    this._infinite = false;
 
 	    this.trigger('paginated:destroy');
+	  },
+
+	  // infinite scroll
+	  appendNextPage: function(){
+	    this._infinite = true;
+	    infintePagination.call(this);
+	    this.trigger('paginated:change:page', { page: 0 });
+	    return this;
 	  }
 
 	};
@@ -1117,8 +1380,6 @@ var FilteredCollection =
 	_.extend(Paginated.prototype, methods, Backbone.Events);
 
 	module.exports =  Paginated;
-
-
 
 /***/ }
 /******/ ]);

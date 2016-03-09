@@ -18,18 +18,15 @@
   "homepage": "https://github.com/kilbot/Backbone-Marionette-Infinite-List#readme",
   "dependencies": {
     "backbone": "^1.2.3",
-    "backbone-collection-proxy": "^0.2.5",
+    "backbone-collection-proxy": "kilbot/backbone-collection-proxy",
     "backbone-dual-storage": "kilbot/Backbone-Dual-Storage",
-    "backbone-filtered-collection": "^0.4.0",
-    "backbone-paginated-collection": "^0.3.6",
-    "backbone-query": "kilbot/Backbone-Query",
-    "backbone-sorted-collection": "^0.3.8",
+    "backbone-filtered-collection": "kilbot/backbone-filtered-collection",
+    "backbone-paginated-collection": "kilbot/backbone-paginated-collection",
+    "backbone-sorted-collection": "kilbot/backbone-sorted-collection",
     "backbone.marionette": "^2.4.4",
-    "backbone.obscura": "^1.0.1",
     "handlebars": "^4.0.5",
     "jquery": "^3.0.0-beta1",
-    "lodash": "^3.10.1",
-    "underscore": "^1.8.3"
+    "lodash": "^3.10.1"
   },
   "devDependencies": {
     "grunt": "^0.4.5",

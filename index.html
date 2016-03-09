@@ -52,7 +52,6 @@
 <script src="../node_modules/backbone/backbone.js"></script>
 <script src="../node_modules/backbone.marionette/lib/backbone.marionette.js"></script>
 <script src="../node_modules/handlebars/dist/handlebars.js"></script>
-<script src="../node_modules/backbone.obscura/backbone.obscura.js"></script>
 <script src="../dist/infinite-list-view.js"></script>
 <script src="../dist/filtered-collection.js"></script>
 <script src="../dist/dual-collection.js"></script>
@@ -84,7 +83,7 @@
       this.query(value);
     },
     query: _.debounce( function(value){
-      this.collection.query(value);
+      this.collection.filterBy(value);
     }, 149),
   });
 
