@@ -55,7 +55,8 @@ module.exports = function(grunt) {
           backbone: 'Backbone',
           'backbone.marionette': 'Marionette',
           handlebars: 'Handlebars'
-        }
+        },
+        watch: true
       },
       view: {
         entry: './src/infinite-list-view.js',

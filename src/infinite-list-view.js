@@ -1,56 +1,56 @@
 var Mn = require('backbone.marionette');
 var hbs = require('handlebars');
 var Tmpl = require('./infinite-list-view.hbs');
+var _ = require('lodash');
 
 module.exports = Mn.CompositeView.extend({
   template: hbs.compile(Tmpl),
 
-  initialize: function(){
-    _.bindAll(this, 'onScroll', 'loadMore', 'getOverflow');
-  },
-
-  onShow: function(){
+  onShow: function () {
     this.container = this.$el.parent()[0];
-    this.$el.parent().scroll( _.throttle( this.onScroll, 250 ) );
-    this.onScroll();
+    this.$el.parent().scroll(_.throttle(this.onScroll.bind(this), 1000/60));
+    this.appendNextPage();
   },
 
   onScroll: function(){
-    if(this.getOverflow() < 100){
-      this.loadMore();
+    if(!this.loading && this.triggerEvent()){
+      this.appendNextPage();
     }
   },
 
   /**
-   * returns overflow at bottom in px
+   * Is user scrolling down && overflow < 100
    * - added clientHeight check to prevent false trigger when div not drawn
-   * @returns {number}
+   * @returns {boolean}
    */
-  getOverflow: function(){
+  triggerEvent: function () {
     var sH = this.container.scrollHeight,
         cH = this.container.clientHeight,
         sT = this.container.scrollTop;
-    return sH - cH - sT;
+    var down = sT > (this._sT || 0);
+    this._sT = sT;
+
+    return down && (sH - cH - sT < 100);
   },
 
-  loadMore: function() {
-    if(this.loading){
-      return;
-    }
+  appendNextPage: function () {
     var self = this;
     this.startLoading();
-    this.collection.superset().fetch({ remote: true })
-      .then(function(){
+    this.collection.appendNextPage()
+      .then(function () {
         self.endLoading();
+      })
+      .catch(function (err) {
+        console.log(err);
       });
   },
 
-  startLoading: function(){
+  startLoading: function () {
     this.loading = true;
     this.$el.addClass('loading');
   },
 
-  endLoading: function(){
+  endLoading: function () {
     this.loading = false;
     this.$el.removeClass('loading');
   }

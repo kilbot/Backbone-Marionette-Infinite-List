@@ -10,7 +10,6 @@
       font-size: 14px;
     }
     input {
-      width: 300px;
       padding: 3px;
       border: 1px solid #ccc;
     }
@@ -53,38 +52,47 @@
 <script src="../node_modules/backbone.marionette/lib/backbone.marionette.js"></script>
 <script src="../node_modules/handlebars/dist/handlebars.js"></script>
 <script src="../dist/infinite-list-view.js"></script>
-<script src="../dist/filtered-collection.js"></script>
 <script src="../dist/dual-collection.js"></script>
 <script>
   // delete database
-  window.indexedDB.deleteDatabase('Prefix_products');
+  window.indexedDB.deleteDatabase('Prefix_customers');
 
   /**
    * Collections
    */
   var collection = new DualCollection();
-  var filtered = new FilteredCollection(collection);
+//  var filtered = new FilteredCollection(collection);
 
   /**
    * Filter View
    */
   var FilterView = Marionette.ItemView.extend({
     template: function(){
-      return '<input type="search" placeholder="search" />';
+      return '<input type="search" placeholder="search" /><button name="sync">sync</button><button name="clear">clear</button>';
     },
     ui: {
-      search: 'input'
+      search: 'input',
+      sync: '[name="sync"]',
+      clear: '[name="clear"]'
     },
     events: {
-      'keyup @ui.search': 'search'
+      'keyup @ui.search': 'search',
+      'click @ui.sync': 'sync',
+      'click @ui.clear': 'clear'
     },
     search: function(){
       var value = this.ui.search.val();
       this.query(value);
     },
     query: _.debounce( function(value){
-      this.collection.filterBy(value);
+
     }, 149),
+    sync: function(){
+      this.collection.fullSync();
+    },
+    clear: function(){
+      this.collection.clear();
+    }
   });
 
   /**
@@ -92,7 +100,7 @@
    */
   var Item = Marionette.ItemView.extend({
     tagName: 'li',
-    template: Handlebars.compile('{{title}}')
+    template: Handlebars.compile('{{first_name}} {{last_name}}')
   });
 
   var Empty = Marionette.ItemView.extend({
@@ -113,20 +121,43 @@
   /**
    *
    */
+  var StatusView = Marionette.ItemView.extend({
+    template: Handlebars.compile('Showing {{showing}} of {{local}}'),
+
+    collectionEvents: {
+      'update reset count': function(){
+        this.render();
+      }
+    },
+
+    templateHelpers: function(){
+      return {
+        showing : this.collection.length,
+        local   : _.max([this.collection.db.length, this.collection.length])
+      };
+    }
+  });
+
+  /**
+   *
+   */
   var LayoutView = Marionette.LayoutView.extend({
     el: '#app',
     template: function(){
-      return '<div class="filter"></div><div class="list"></div>';
+      return '<div class="filter"></div><div class="list"></div><div class="status"></div>';
     },
     regions: {
       filter: '.filter',
-      list: '.list'
+      list: '.list',
+      status: '.status'
     },
     onRender: function(){
-      var filter = new FilterView({ collection: filtered });
-      var list = new ListView({ collection: filtered });
+      var filter = new FilterView({ collection: collection });
+      var list = new ListView({ collection: collection });
+      var status = new StatusView({ collection: collection });
       this.getRegion('filter').show(filter);
       this.getRegion('list').show(list);
+      this.getRegion('status').show(status);
     }
   });
   var layout = new LayoutView();
