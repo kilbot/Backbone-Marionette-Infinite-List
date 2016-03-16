@@ -67,11 +67,11 @@ module.exports = function(grunt) {
         }
       },
       filtered: {
-        entry: './src/filtered-collection.js',
+        entry: './src/filter-behavior.js',
         output: {
           path: 'dist/',
-          filename: 'filtered-collection.js',
-          library: 'FilteredCollection'
+          filename: 'filter-behavior.js',
+          library: 'FilterBehavior'
         }
       },
       dual: {

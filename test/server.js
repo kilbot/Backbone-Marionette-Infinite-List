@@ -16,13 +16,23 @@ server.get('/api/customers', function(req, res){
   console.log(req.query);
   var response = _.clone(customers);
   var pageSize = _.get(req.query, ['filter', 'limit'], 10);
+  var query = _.get(req.query, ['filter', 'q']);
   var start = pageSize * (req.query.page || 1) - pageSize;
+
+  if(query){
+    response = _.filter(response, function(model){
+      return model.first_name.toLowerCase().indexOf(query.toLowerCase()) !== -1 ||
+        model.last_name.toLowerCase().indexOf(query.toLowerCase()) !== -1;
+    });
+  }
+
   if(req.query.in){
     var ids = req.query.in.split(',');
     response = _.filter(response, function(model){
       return _.includes(ids, model.id.toString());
     });
   }
+
   setTimeout(function(){
     res.send({
       'customers': _.slice(response, start, start + pageSize)

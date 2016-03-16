@@ -53,6 +53,8 @@ var DualCollection =
 
 	  _page: 0,
 
+	  fields: ['first_name', 'last_name'],
+
 	  appendNextPage: function(options) {
 	    options = options || {};
 	    var self = this, isNew = this.isNew();
@@ -157,7 +159,7 @@ var DualCollection =
 
 	var bb = __webpack_require__(2);
 	var IDBCollection = __webpack_require__(6);
-	var DualModel = __webpack_require__(10);
+	var DualModel = __webpack_require__(12);
 	var _ = __webpack_require__(8);
 
 	module.exports = bb.DualCollection = IDBCollection.extend({
@@ -348,6 +350,7 @@ var DualCollection =
 	var IDBAdapter = __webpack_require__(7);
 	var IDBModel = __webpack_require__(9);
 	var _ = __webpack_require__(8);
+	var matchMarker = __webpack_require__(10);
 
 	var Collection = bb.Collection.extend({
 	  constructor: function() {
@@ -369,18 +372,7 @@ var DualCollection =
 	  model: IDBModel,
 
 	  constructor: function () {
-	    var opts = {
-	      storeName    : this.name,
-	      storePrefix  : this.storePrefix,
-	      dbVersion    : this.dbVersion,
-	      keyPath      : this.keyPath,
-	      autoIncrement: this.autoIncrement,
-	      indexes      : this.indexes,
-	      pageSize     : this.pageSize
-	    };
-
-	    this.db = new IDBAdapter(opts);
-
+	    this.db = new IDBAdapter({ collection: this });
 	    Collection.apply(this, arguments);
 	  },
 
@@ -480,7 +472,9 @@ var DualCollection =
 	        }
 	        return models;
 	      });
-	  }
+	  },
+
+	  matchMaker: matchMarker
 
 	});
 
@@ -523,7 +517,10 @@ var DualCollection =
 	};
 
 	function IDBAdapter( options ){
-	  this.opts = _.defaults( options, defaults );
+	  options = options || {};
+	  this.parent = options.collection;
+	  this.opts = _.defaults(_.pick(this.parent, _.keys(defaults)), defaults);
+	  this.opts.storeName = this.parent.name || defaults.storeName;
 	  this.opts.dbName = this.opts.storePrefix + this.opts.storeName;
 	}
 
@@ -801,6 +798,7 @@ var DualCollection =
 	        limit = _.get(options, ['filter', 'limit'], this.opts.pageSize),
 	        offset = _.get(options, ['filter', 'offset'], 0),
 	        include = _.get(options, ['filter', 'in']),
+	        query = _.get(options, ['filter', 'q']),
 	        keyPath = options.index || this.opts.keyPath,
 	        page = options.page,
 	        self = this;
@@ -818,20 +816,18 @@ var DualCollection =
 	    }
 
 	    return new Promise(function (resolve, reject) {
-	      var request;
-	      if(keyPath === self.opts.keyPath){
-	        request = objectStore.openCursor();
-	      } else {
-	        var openIndex = objectStore.index(keyPath);
-	        request = openIndex.openCursor();
-	      }
-	      var records = [];
-	      var idx = 0;
+	      var records = [], idx = 0;
+	      var request = (keyPath === self.opts.keyPath) ?
+	        objectStore.openCursor() : objectStore.index(keyPath).openCursor();
 
 	      request.onsuccess = function (event) {
 	        var cursor = event.target.result;
 	        if (cursor && records.length < limit) {
-	          if( (!include || include.indexOf(cursor.value[keyPath]) !== -1 ) && ++idx > offset){
+	          if(
+	            (!include || _.includes(include, cursor.value[keyPath])) &&
+	            (!query || self._match(query, cursor.value, keyPath, options)) &&
+	            ++idx > offset
+	          ){
 	            records.push(cursor.value);
 	          }
 	          return cursor.continue();
@@ -909,6 +905,11 @@ var DualCollection =
 	      return true;
 	    }
 	    return false;
+	  },
+
+	  _match: function(query, json, keyPath, options){
+	    var fields = _.get(options, ['filter', 'fields'], keyPath);
+	    return this.parent.matchMaker(json, query, {fields: fields});
 	  }
 
 	};
@@ -947,6 +948,110 @@ var DualCollection =
 
 /***/ },
 /* 10 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var _ = __webpack_require__(8);
+	var match = __webpack_require__(11);
+
+	var defaults = {
+	  fields: ['title'] // json property to use for simple string search
+	};
+
+	var methods = {
+
+	  string: function(json, filter, options) {
+	    var fields = _.isArray(options.fields) ? options.fields : [options.fields];
+	    var needle = filter.query ? filter.query.toLowerCase() : '';
+
+	    var haystacks = _.chain(fields)
+	      .map(function (key) {
+	        return _.get(json, key); // allows nested get
+	      })
+	      .value();
+
+	    return _.some(haystacks, function (haystack) {
+	      return match(haystack, needle, options);
+	    });
+	  },
+
+	  prefix: function(json, filter){
+	    return this.string(json, filter, {fields: filter.prefix});
+	  },
+
+	  or: function(json, filter, options){
+	    var self = this;
+	    return _.some(filter.queries, function(query){
+	      return self[query.type](json, query, options);
+	    });
+	  }
+
+	};
+
+	module.exports = function(json, filterArray, options) {
+	  var opts = _.defaults({}, options, defaults);
+
+	  if (!_.isArray(filterArray)) {
+	    filterArray = [{type: 'string', query: filterArray}];
+	  }
+
+	  // todo: every = AND, some = OR
+	  return _.every(filterArray, function (filter) {
+	    return methods[filter.type](json, filter, opts);
+	  });
+	};
+
+/***/ },
+/* 11 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var _ = __webpack_require__(8);
+
+	var toType = function(obj){
+	  return ({}).toString.call(obj).match(/\s([a-z|A-Z]+)/)[1].toLowerCase();
+	};
+
+	var defaults = {
+
+	};
+
+	var match = {
+	  'string': function(str, value, options){
+	    if(options.exact || _.isEmpty(value)){
+	      return str.toLowerCase() === value;
+	    }
+	    return str.toLowerCase().indexOf( value ) !== -1;
+	  },
+
+	  'number': function(number, value, options){
+	    if(options.exact){
+	      return number.toString() === value;
+	    }
+	    return number.toString().indexOf( value ) !== -1;
+	  },
+
+	  'boolean': function(bool, value){
+	    return bool.toString() === value;
+	  },
+
+	  'array': function(array, value, options){
+	    var self = this;
+	    return _.some(array, function(elem){
+	      var type = toType(elem);
+	      return self[type](elem, value, options);
+	    });
+	  }
+	};
+
+	module.exports = function(haystack, needle, options){
+	  var opts = _.defaults({}, options, defaults);
+	  var type = toType(haystack);
+	  if(match[type]){
+	    return match[type](haystack, needle, opts);
+	  }
+	};
+
+/***/ },
+/* 12 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var bb = __webpack_require__(2);

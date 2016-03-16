@@ -8,7 +8,7 @@ module.exports = Mn.CompositeView.extend({
 
   onShow: function () {
     this.container = this.$el.parent()[0];
-    this.$el.parent().scroll(_.throttle(this.onScroll.bind(this), 1000/60));
+    this.$el.parent().on('scroll', _.throttle(this.onScroll.bind(this), 1000/60));
     this.appendNextPage();
   },
 

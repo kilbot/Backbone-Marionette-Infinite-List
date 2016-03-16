@@ -26,7 +26,8 @@
     "backbone.marionette": "^2.4.4",
     "handlebars": "^4.0.5",
     "jquery": "^3.0.0-beta1",
-    "lodash": "^3.10.1"
+    "lodash": "^3.10.1",
+    "query-parser": "kilbot/Query-Parser"
   },
   "devDependencies": {
     "grunt": "^0.4.5",

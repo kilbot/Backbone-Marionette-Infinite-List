@@ -53,6 +53,7 @@
 <script src="../node_modules/handlebars/dist/handlebars.js"></script>
 <script src="../dist/infinite-list-view.js"></script>
 <script src="../dist/dual-collection.js"></script>
+<script src="../dist/filter-behavior.js"></script>
 <script>
   // delete database
   window.indexedDB.deleteDatabase('Prefix_customers');
@@ -68,29 +69,26 @@
    */
   var FilterView = Marionette.ItemView.extend({
     template: function(){
-      return '<input type="search" placeholder="search" /><button name="sync">sync</button><button name="clear">clear</button>';
+      return '<input type="search" placeholder="search" />' +
+          '<button data-action="sync">sync</button>' +
+          '<button data-action="clearDB">clearDB</button>';
     },
-    ui: {
-      search: 'input',
-      sync: '[name="sync"]',
-      clear: '[name="clear"]'
-    },
-    events: {
-      'keyup @ui.search': 'search',
-      'click @ui.sync': 'sync',
-      'click @ui.clear': 'clear'
-    },
-    search: function(){
-      var value = this.ui.search.val();
-      this.query(value);
-    },
-    query: _.debounce( function(value){
 
-    }, 149),
-    sync: function(){
-      this.collection.fullSync();
+    behaviors: {
+      Filter: {
+        behaviorClass: FilterBehavior
+      }
     },
-    clear: function(){
+
+    ui: {
+      clearDB: '[dataa-action="clearDB"]'
+    },
+
+    events: {
+      'click @ui.clearDB': 'clearDB'
+    },
+
+    clearDB: function(){
       this.collection.clear();
     }
   });

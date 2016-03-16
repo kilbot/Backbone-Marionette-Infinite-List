@@ -6,6 +6,8 @@ module.exports = DualCollection.extend({
 
   _page: 0,
 
+  fields: ['first_name', 'last_name'],
+
   appendNextPage: function(options) {
     options = options || {};
     var self = this, isNew = this.isNew();
