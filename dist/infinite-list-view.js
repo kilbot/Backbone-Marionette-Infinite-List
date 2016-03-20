@@ -51,6 +51,8 @@ var InfiniteListView =
 	var _ = __webpack_require__(4);
 
 	module.exports = Mn.CompositeView.extend({
+	  _page: 0,
+
 	  template: hbs.compile(Tmpl),
 
 	  onShow: function () {
@@ -80,10 +82,22 @@ var InfiniteListView =
 	    return down && (sH - cH - sT < 100);
 	  },
 
-	  appendNextPage: function () {
-	    var self = this;
+	  appendNextPage: function (options) {
 	    this.startLoading();
-	    this.collection.appendNextPage()
+	    options = options || {};
+	    var self = this, collection = this.collection, isNew = collection.isNew();
+
+	    options.data = {
+	      page: ++this._page
+	    };
+	    options.remove = false;
+
+	    return collection.fetch(options)
+	      .then(function(response){
+	        if(isNew && _.size(response) === 0){
+	          return collection.firstSync();
+	        }
+	      })
 	      .then(function () {
 	        self.endLoading();
 	      })
@@ -119,7 +133,7 @@ var InfiniteListView =
 /* 3 */
 /***/ function(module, exports) {
 
-	module.exports = "<div></div>\n<ul></ul>\n<div>Loading ...</div>"
+	module.exports = "<div></div>\n<ul></ul>\n<div><i class=\"icon-spinner\"></i></div>"
 
 /***/ },
 /* 4 */

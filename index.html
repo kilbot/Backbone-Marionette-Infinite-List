@@ -41,6 +41,9 @@
     .list-infinite.loading > div:last-of-type {
       display: block;
     }
+    .icon-spinner:before {
+      content: 'Loading ...'
+    }
   </style>
 </head>
 <body>
@@ -62,7 +65,6 @@
    * Collections
    */
   var collection = new DualCollection();
-//  var filtered = new FilteredCollection(collection);
 
   /**
    * Filter View
@@ -70,8 +72,10 @@
   var FilterView = Marionette.ItemView.extend({
     template: function(){
       return '<input type="search" placeholder="search" />' +
+          '<button data-action="clear">x</button>' +
           '<button data-action="sync">sync</button>' +
-          '<button data-action="clearDB">clearDB</button>';
+          '<button data-action="even">even</button>' +
+          '<button data-action="all">all</button>';
     },
 
     behaviors: {
@@ -81,15 +85,17 @@
     },
 
     ui: {
-      clearDB: '[dataa-action="clearDB"]'
+      even: '*[data-action="even"]',
+      all : '*[data-action="all"]'
     },
 
     events: {
-      'click @ui.clearDB': 'clearDB'
-    },
-
-    clearDB: function(){
-      this.collection.clear();
+      'click @ui.even': function(){
+        this.collection.setFilter('tab', 'even:true');
+      },
+      'click @ui.all': function(){
+        this.collection.setFilter('tab', '');
+      }
     }
   });
 
@@ -120,7 +126,7 @@
    *
    */
   var StatusView = Marionette.ItemView.extend({
-    template: Handlebars.compile('Showing {{showing}} of {{local}}'),
+    template: Handlebars.compile('Showing {{showing}} of {{local}} <button data-action="clear">clear</button>'),
 
     collectionEvents: {
       'update reset count': function(){
@@ -133,6 +139,22 @@
         showing : this.collection.length,
         local   : _.max([this.collection.db.length, this.collection.length])
       };
+    },
+
+    ui: {
+      clear: '[data-action="clear"]'
+    },
+
+    events: {
+      'click @ui.clear': 'clear'
+    },
+
+    clear: function(){
+      var self = this;
+      this.collection.clear()
+        .then( function() {
+          self.collection.resetNew();
+        });
     }
   });
 

@@ -4,6 +4,8 @@ var Tmpl = require('./infinite-list-view.hbs');
 var _ = require('lodash');
 
 module.exports = Mn.CompositeView.extend({
+  _page: 0,
+
   template: hbs.compile(Tmpl),
 
   onShow: function () {
@@ -33,10 +35,22 @@ module.exports = Mn.CompositeView.extend({
     return down && (sH - cH - sT < 100);
   },
 
-  appendNextPage: function () {
-    var self = this;
+  appendNextPage: function (options) {
     this.startLoading();
-    this.collection.appendNextPage()
+    options = options || {};
+    var self = this, collection = this.collection, isNew = collection.isNew();
+
+    options.data = {
+      page: ++this._page
+    };
+    options.remove = false;
+
+    return collection.fetch(options)
+      .then(function(response){
+        if(isNew && _.size(response) === 0){
+          return collection.firstSync();
+        }
+      })
       .then(function () {
         self.endLoading();
       })
