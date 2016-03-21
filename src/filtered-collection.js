@@ -4,81 +4,95 @@ var parse = new Parser();
 
 var defaultFilterName = '__default';
 
-var queries = function(queryArray){
-  return _.reduce(queryArray, function (result, value) {
-    if (!result) {
-      return value;
-    }
-    if (result.length === 1) {
-      result.push(value[0]);
-      return [{
-        type   : 'and',
-        queries: result
-      }];
-    }
-    result[0].queries.push(value[0]);
-    return result;
-  });
-};
-
-module.exports = function(Collection){
+module.exports = function(Collection) {
 
   return Collection.extend({
-    _filters: {},
 
-    _filter: function(){
-      var options;
-
-      if(_.size(this._filters) !== 0){
-        options = {
-          data: {
-            filter: {
-              q: queries(this._filters),
-              fields: this.fields
-            }
-          }
-        };
-      }
-
-      return this.fetch(options);
+    constructor: function () {
+      Collection.apply(this, arguments);
+      this._filters = {};
     },
 
-    setFilter: function(filterName, filter) {
-      if(filter === undefined) {
+
+    setFilter: function (filterName, filter) {
+      if (filter === undefined) {
         filter = filterName;
         filterName = defaultFilterName;
       }
-      if(!filter){
+      if (!filter) {
         return this.removeFilter(filterName);
       }
-      this._filters[filterName] = _.isString(filter) ? parse(filter) : filter;
+      this._filters[filterName] = {
+        string: filter,
+        query : _.isString(filter) ? parse(filter) : filter
+      };
       this.trigger('filtered:set');
-      return this._filter();
+
+      return this.fetch({
+        data: this.getFilterOptions()
+      });
     },
 
-    removeFilter: function(filterName) {
+    removeFilter: function (filterName) {
       if (!filterName) {
         filterName = defaultFilterName;
       }
       delete this._filters[filterName];
       this.trigger('filtered:remove');
-      return this._filter();
+
+      return this.fetch({
+        data: this.getFilterOptions()
+      });
     },
 
-    resetFilters: function() {
+    resetFilters: function () {
       this._filters = {};
       this.trigger('filtered:reset');
-      return this._filter();
+      return this.fetch();
     },
 
-    getFilters: function() {
-      return _.keys(this._filters);
+    getFilters: function (name) {
+      if(name){
+        return this._filters[name];
+      }
+      return this._filters;
     },
 
-    hasFilter: function(name) {
-      return _.includes(this.getFilters(), name);
+    hasFilter: function (name) {
+      return _.includes(_.keys(this.getFilters()), name);
+    },
+
+    hasFilters: function () {
+      return _.size(this.getFilters()) > 0;
+    },
+
+    getFilterOptions: function () {
+      if (this.hasFilters()) {
+        return {filter: {q: this.getFilterQueries(), fields: this.fields}};
+      }
+    },
+
+    getFilterQueries: function () {
+      var queries = _(this.getFilters()).map('query').flattenDeep().value();
+
+      // compact
+      if(queries.length > 1){
+        queries = _.reduce(queries, function(result, next){
+          if(!_.some(result, function(val){return _.isEqual(val, next);})){
+            result.push(next);
+          }
+          return result;
+        }, []);
+      }
+
+      // extra compact for common simple query
+      if(queries.length === 1 && _.get(queries, [0, 'type']) === 'string') {
+        queries = _.get(queries, [0, 'query']);
+      }
+
+      return queries;
     }
 
   });
-  
+
 };

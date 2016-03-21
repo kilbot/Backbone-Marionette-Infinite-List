@@ -11,6 +11,8 @@ var IDBCollection = require('backbone-indexeddb/src/collection')(FilteredCollect
 var DualModel = require('backbone-dual-storage/src/model')(IDBModel);
 var DualCollection = require('backbone-dual-storage/src/collection')(IDBCollection);
 
+bb.DualCollection = DualCollection;
+
 module.exports = DualCollection.extend({
   model: DualModel,
   name: 'customers',

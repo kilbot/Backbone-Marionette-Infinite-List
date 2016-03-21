@@ -17,6 +17,7 @@ server.get('/api/customers', function(req, res){
   var response = _.clone(customers);
   var pageSize = _.get(req.query, ['filter', 'limit'], 10);
   var query = _.get(req.query, ['filter', 'q']);
+  var include = _.get(req.query, ['filter', 'in']);
   var start = pageSize * (req.query.page || 1) - pageSize;
 
   if(query){
@@ -26,8 +27,8 @@ server.get('/api/customers', function(req, res){
     });
   }
 
-  if(req.query.in){
-    var ids = req.query.in.split(',');
+  if(include){
+    var ids = include.split(',');
     response = _.filter(response, function(model){
       return _.includes(ids, model.id.toString());
     });

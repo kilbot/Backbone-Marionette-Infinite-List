@@ -119,7 +119,10 @@
     className: 'list-infinite',
     childView: Item,
     emptyView: Empty,
-    childViewContainer: 'ul'
+    childViewContainer: 'ul',
+    onShow: function(){
+      this.collection.fetch();
+    }
   });
 
   /**

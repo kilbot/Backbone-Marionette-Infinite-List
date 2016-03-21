@@ -7,24 +7,24 @@ module.exports = function(grunt) {
         files: ['src/*.js'],
         tasks: ['jshint', 'webpack']
       },
-      //test: {
-      //  files: ['tests/*.js'],
-      //  tasks: ['simplemocha']
-      //}
+      test: {
+       files: ['test/*.js', 'src/*.js'],
+       tasks: ['simplemocha']
+      }
     },
 
-    //simplemocha: {
-    //  options: {
-    //    ui: 'bdd',
-    //    reporter: 'spec'
-    //  },
-    //  all: {
-    //    src: [
-    //      'tests/setup.js',
-    //      'tests/spec.js'
-    //    ]
-    //  }
-    //},
+    simplemocha: {
+     options: {
+       ui: 'bdd',
+       reporter: 'spec'
+     },
+     all: {
+       src: [
+         'test/setup.js',
+         'test/spec.js'
+       ]
+     }
+    },
 
     jshint: {
       options: {
@@ -88,5 +88,5 @@ module.exports = function(grunt) {
 
   require('load-grunt-tasks')(grunt);
   grunt.registerTask('default', ['jshint']);
-  grunt.registerTask('dev', ['default', 'webpack', 'watch']);
+  grunt.registerTask('dev', ['default', 'webpack', 'simplemocha', 'watch']);
 }
