@@ -15,10 +15,11 @@ server.use(jsonServer.defaults({
 server.get('/api/customers', function(req, res){
   console.log(req.query);
   var response = _.clone(customers);
-  var pageSize = _.get(req.query, ['filter', 'limit'], 10);
+  var pageSize = parseInt( _.get(req.query, ['filter', 'limit'], 10) );
   var query = _.get(req.query, ['filter', 'q']);
   var include = _.get(req.query, ['filter', 'in']);
-  var start = pageSize * (req.query.page || 1) - pageSize;
+  var offset = parseInt( _.get(req.query, ['filter', 'offset'], 0) );
+  var start = pageSize * (req.query.page || 1) - pageSize + offset;
 
   if(query){
     response = _.filter(response, function(model){
@@ -35,6 +36,7 @@ server.get('/api/customers', function(req, res){
   }
 
   setTimeout(function(){
+    res.set('X-WC-Total', response.length);
     res.send({
       'customers': _.slice(response, start, start + pageSize)
     });

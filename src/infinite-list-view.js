@@ -2,7 +2,6 @@ var Mn = require('backbone.marionette');
 var _ = require('lodash');
 
 module.exports = Mn.CompositeView.extend({
-  _page: 1,
 
   className: 'list-infinite',
 
@@ -25,7 +24,7 @@ module.exports = Mn.CompositeView.extend({
   },
 
   onScroll: function(){
-    if(!this.loading && this.collection.length < this.collection.db.length && this.triggerEvent()){
+    if(!this.loading && this.hasNextPage() && this.triggerEvent()){
       this.appendNextPage();
     }
   },
@@ -40,25 +39,16 @@ module.exports = Mn.CompositeView.extend({
   },
 
   appendNextPage: function () {
-    var data = {
-      page: ++this._page,
-    };
-
-    if(this.collection.hasFilters()){
-      data.filter = this.collection.getFilterOptions();
-    }
-
     return this.collection.fetch({
       remove: false,
-      data: data,
-      success: function(self, response, options){
-        console.log(options);
+      data: {
+        filter: _.merge({offset: this.collection.length}, this.collection.getFilterOptions())
       }
     });
   },
 
   hasNextPage: function () {
-
+    return this.collection._hasNextPage;
   },
 
   startLoading: function () {

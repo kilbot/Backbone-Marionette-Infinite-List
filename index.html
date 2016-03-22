@@ -129,10 +129,10 @@
    *
    */
   var StatusView = Marionette.ItemView.extend({
-    template: Handlebars.compile('Showing {{showing}} of {{local}} <button data-action="clear">clear</button>'),
+    template: Handlebars.compile('Showing {{showing}} of {{total}} <button data-action="clear">clear</button>'),
 
     collectionEvents: {
-      'update reset count': function(){
+      'sync': function(){
         this.render();
       }
     },
@@ -140,7 +140,7 @@
     templateHelpers: function(){
       return {
         showing : this.collection.length,
-        local   : _.max([this.collection.db.length, this.collection.length])
+        total   : this.collection.total || 0
       };
     },
 

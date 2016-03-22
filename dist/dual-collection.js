@@ -107,11 +107,9 @@ var DualCollection =
 /***/ function(module, exports, __webpack_require__) {
 
 	var bb = __webpack_require__(2);
-	var _ = __webpack_require__(1);
 
 	/* jshint -W074 */
 	module.exports = function(method, entity, options) {
-	  options = options || {};
 	  var isModel = entity instanceof bb.Model;
 
 	  return entity.db.open()
@@ -121,8 +119,7 @@ var DualCollection =
 	          if (isModel) {
 	            return entity.db.get(entity.id);
 	          }
-	          var data = _.clone(options.data);
-	          return entity.db.getBatch(data);
+	          return entity.db.getBatch(options);
 	        case 'create':
 	          return entity.db.add(entity.toJSON())
 	            .then(function (key) {
@@ -215,9 +212,7 @@ var DualCollection =
 	      };
 	      this.trigger('filtered:set');
 
-	      return this.fetch({
-	        data: this.getFilterOptions()
-	      });
+	      return this.fetch({data: {filter: this.getFilterOptions()}});
 	    },
 
 	    removeFilter: function (filterName) {
@@ -227,9 +222,7 @@ var DualCollection =
 	      delete this._filters[filterName];
 	      this.trigger('filtered:remove');
 
-	      return this.fetch({
-	        data: this.getFilterOptions()
-	      });
+	      return this.fetch({data: {filter: this.getFilterOptions()}});
 	    },
 
 	    resetFilters: function () {
@@ -239,7 +232,7 @@ var DualCollection =
 	    },
 
 	    getFilters: function (name) {
-	      if(name){
+	      if (name) {
 	        return this._filters[name];
 	      }
 	      return this._filters;
@@ -255,7 +248,7 @@ var DualCollection =
 
 	    getFilterOptions: function () {
 	      if (this.hasFilters()) {
-	        return {filter: {q: this.getFilterQueries(), fields: this.fields}};
+	        return {q: this.getFilterQueries(), fields: this.fields};
 	      }
 	    },
 
@@ -263,9 +256,11 @@ var DualCollection =
 	      var queries = _(this.getFilters()).map('query').flattenDeep().value();
 
 	      // compact
-	      if(queries.length > 1){
-	        queries = _.reduce(queries, function(result, next){
-	          if(!_.some(result, function(val){return _.isEqual(val, next);})){
+	      if (queries.length > 1) {
+	        queries = _.reduce(queries, function (result, next) {
+	          if (!_.some(result, function (val) {
+	              return _.isEqual(val, next);
+	            })) {
 	            result.push(next);
 	          }
 	          return result;
@@ -273,7 +268,7 @@ var DualCollection =
 	      }
 
 	      // extra compact for common simple query
-	      if(queries.length === 1 && _.get(queries, [0, 'type']) === 'string') {
+	      if (queries.length === 1 && _.get(queries, [0, 'type']) === 'string') {
 	        queries = _.get(queries, [0, 'query']);
 	      }
 
@@ -995,49 +990,19 @@ var DualCollection =
 	  },
 
 	  getBatch: function (keyArray, options) {
-	    options = options || keyArray || {};
-	    var self = this, objectStore = options.objectStore || this.getObjectStore(consts.READ_ONLY);
-
-	    if(_.isArray(keyArray)){
-	      options.filter = _.merge({in: keyArray}, options.filter);
+	    if(!options && !_.isArray(keyArray)){
+	      options = keyArray;
 	    }
-
-	    if (objectStore.getAll === undefined || this.hasGetParams(options)) {
-	      if(!options.objectStore){
-	        options.objectStore = objectStore;
-	      }
-	      return this.getAll(options);
-	    }
-
-	    var limit = _.get(options, ['filter', 'limit'], this.opts.pageSize);
-	    if (limit === -1) {
-	      limit = null; // firefox doesn't like -1 or Infinity
-	    }
-
-	    return new Promise(function (resolve, reject) {
-	      var request = objectStore.getAll(null, limit);
-
-	      request.onsuccess = function (event) {
-	        resolve(event.target.result);
-	      };
-
-	      request.onerror = function (event) {
-	        options._error = {event: event, message: 'getAll error', callback: reject};
-	        self.opts.onerror(options);
-	      };
-	    });
-	  },
-
-	  getAll: function (options) {
 	    options = options || {};
+
 	    var objectStore = options.objectStore || this.getObjectStore(consts.READ_ONLY),
-	        limit = _.get(options, ['filter', 'limit'], this.opts.pageSize),
-	        offset = _.get(options, ['filter', 'offset'], 0),
-	        include = _.get(options, ['filter', 'in']),
-	        query = _.get(options, ['filter', 'q']),
+	        include = _.isArray(keyArray) ? keyArray: _.get(options, ['data', 'filter', 'in']),
+	        limit   = _.get(options, ['data', 'filter', 'limit'], this.opts.pageSize),
+	        offset  = _.get(options, ['data', 'filter', 'offset'], 0),
+	        query   = _.get(options, ['data', 'filter', 'q']),
 	        keyPath = options.index || this.opts.keyPath,
-	        page = options.page,
-	        self = this;
+	        page    = _.get(options, ['data', 'page']),
+	        self    = this;
 
 	    if(_.isObject(keyPath)){
 	      keyPath = keyPath.keyPath;
@@ -1052,23 +1017,27 @@ var DualCollection =
 	    }
 
 	    return new Promise(function (resolve, reject) {
-	      var records = [], idx = 0;
+	      var records = [], delayed = 0;
 	      var request = (keyPath === self.opts.keyPath) ?
 	        objectStore.openCursor() : objectStore.index(keyPath).openCursor();
 
 	      request.onsuccess = function (event) {
 	        var cursor = event.target.result;
-	        if (cursor && records.length < limit) {
+	        if (cursor) {
+	          if(cursor.value._state === 'READ_FAILED'){
+	            delayed++;
+	          }
 	          if(
 	            (!include || _.includes(include, cursor.value[keyPath])) &&
-	            (!query || self._match(query, cursor.value, keyPath, options)) &&
-	            ++idx > offset
+	            (!query || self._match(query, cursor.value, keyPath, options))
 	          ){
 	            records.push(cursor.value);
 	          }
 	          return cursor.continue();
 	        }
-	        resolve(records);
+	        _.set(options, 'idb.total', records.length);
+	        _.set(options, 'idb.delayed', delayed);
+	        resolve(_.slice(records, offset, offset + limit));
 	      };
 
 	      request.onerror = function (event) {
@@ -1122,29 +1091,8 @@ var DualCollection =
 	    });
 	  },
 
-	  /**
-	   * data: {
-	   *  filter: {
-	   *    limit: -1,
-	   *    offset: 10,
-	   *    q: 'term'
-	   *    ...
-	   *  },
-	   *  fields: ['id', '_state'],
-	   *  page: 2
-	   * }
-	   */
-	  hasGetParams: function(options){
-	    options = options || {};
-	    if(options.page || options.fields || _.size(options.filter) > 1 ||
-	      (_.size(options.filter) === 1 && options.filter.limit === undefined)){
-	      return true;
-	    }
-	    return false;
-	  },
-
 	  _match: function(query, json, keyPath, options){
-	    var fields = _.get(options, ['filter', 'fields'], keyPath);
+	    var fields = _.get(options, ['data', 'filter', 'fields'], keyPath);
 	    return this.opts.matchMaker.call(this, json, query, {fields: fields});
 	  }
 
@@ -1429,15 +1377,29 @@ var DualCollection =
 
 	    fetch: function (options) {
 	      options = _.extend({parse: true}, options);
-	      var self = this, _fetch = options.remote ? this.fetchRemote : this.fetchLocal;
+	      var self = this, success = options.success;
+	      var _fetch = options.remote ? this.fetchRemote : this.fetchLocal;
+
+	      if(success){
+	        options.success = undefined;
+	      }
 
 	      this.trigger('request', this, null, options);
 	      return _fetch.call(this, options)
 	        .then(function (response) {
 	          var method = options.reset ? 'reset' : 'set';
 	          self[method](response, options);
-	          if (options.success) {
-	            options.success.call(options.context, self, response, options);
+	          if (success) {
+	            success.call(options.context, self, response, options);
+	          }
+	          if(options.idb){
+	            self.total = options.idb.total;
+	            self.delayed = options.idb.delayed;
+	            self._hasNextPage = self.length < self.total || self.delayed > 0;
+	          }
+	          if(options.xhr){
+	            self.total = options.xhr.getResponseHeader('X-WC-Total');
+	            self._hasNextPage = self.length < self.total;
 	          }
 	          self.trigger('sync', self, response, options);
 	          return response;
@@ -1451,15 +1413,15 @@ var DualCollection =
 	      var self = this;
 	      options = options || {};
 
-	      return IDBCollection.prototype.getBatch.call(this, null, options.data)
+	      return IDBCollection.prototype.getBatch.call(this, options)
 	        .then(function (response) {
 	          if(_.size(response) > 0){
 	            return self.fetchDelayed(response);
 	          }
 	          if(self.isNew()){
-	            return self.firstSync();
+	            return self.firstSync(options);
 	          }
-	          return response;
+	          return self.fetchRemote(options);
 	        });
 	    },
 
@@ -1468,14 +1430,14 @@ var DualCollection =
 	     * returns merged data
 	     */
 	    fetchRemote: function (options) {
-	      var self = this, opts = _.clone(options) || {};
-	      opts.remote = true;
-	      opts.success = undefined;
+	      // options = _.extend({remote: true}, options);
+	      options = options || {};
+	      options.remote = true;
+	      var self = this;
 
-	      return this.sync('read', this, opts)
+	      return this.sync('read', this, options)
 	        .then(function (response) {
-	          console.log(opts.xhr.getAllResponseHeaders());
-	          response = self.parse(response, opts);
+	          response = self.parse(response, options);
 	          return self.putBatch(response, { index: 'id' });
 	        })
 	        .then(function (keys) {
@@ -1532,22 +1494,15 @@ var DualCollection =
 
 	    firstSync: function(options){
 	      var self = this, response;
-	      return this.fetchRemote()
-	        .then(function (resp) {
-	          response = resp;
-	          self.fullSync(options);
-	        })
-	        .then(function () {
+	      return this.fetchRemote(options)
+	        .then(function (response) {
+	          self.fullSync();
 	          return response;
 	        });
 	    },
 
 	    fullSync: function(options){
-	      var self = this;
-	      return this.fetchRemoteIds(options)
-	        .then(function () {
-	          return self.count();
-	        });
+	      return this.fetchRemoteIds(options);
 	    },
 
 	    fetchDelayed: function(response){

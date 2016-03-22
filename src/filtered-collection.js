@@ -28,9 +28,7 @@ module.exports = function(Collection) {
       };
       this.trigger('filtered:set');
 
-      return this.fetch({
-        data: this.getFilterOptions()
-      });
+      return this.fetch({data: {filter: this.getFilterOptions()}});
     },
 
     removeFilter: function (filterName) {
@@ -40,9 +38,7 @@ module.exports = function(Collection) {
       delete this._filters[filterName];
       this.trigger('filtered:remove');
 
-      return this.fetch({
-        data: this.getFilterOptions()
-      });
+      return this.fetch({data: {filter: this.getFilterOptions()}});
     },
 
     resetFilters: function () {
@@ -52,7 +48,7 @@ module.exports = function(Collection) {
     },
 
     getFilters: function (name) {
-      if(name){
+      if (name) {
         return this._filters[name];
       }
       return this._filters;
@@ -68,7 +64,7 @@ module.exports = function(Collection) {
 
     getFilterOptions: function () {
       if (this.hasFilters()) {
-        return {filter: {q: this.getFilterQueries(), fields: this.fields}};
+        return {q: this.getFilterQueries(), fields: this.fields};
       }
     },
 
@@ -76,9 +72,11 @@ module.exports = function(Collection) {
       var queries = _(this.getFilters()).map('query').flattenDeep().value();
 
       // compact
-      if(queries.length > 1){
-        queries = _.reduce(queries, function(result, next){
-          if(!_.some(result, function(val){return _.isEqual(val, next);})){
+      if (queries.length > 1) {
+        queries = _.reduce(queries, function (result, next) {
+          if (!_.some(result, function (val) {
+              return _.isEqual(val, next);
+            })) {
             result.push(next);
           }
           return result;
@@ -86,7 +84,7 @@ module.exports = function(Collection) {
       }
 
       // extra compact for common simple query
-      if(queries.length === 1 && _.get(queries, [0, 'type']) === 'string') {
+      if (queries.length === 1 && _.get(queries, [0, 'type']) === 'string') {
         queries = _.get(queries, [0, 'query']);
       }
 
