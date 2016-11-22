@@ -54,9 +54,7 @@
 <script src="../node_modules/backbone/backbone.js"></script>
 <script src="../node_modules/backbone.marionette/lib/backbone.marionette.js"></script>
 <script src="../node_modules/handlebars/dist/handlebars.js"></script>
-<script src="../dist/infinite-list-view.js"></script>
-<script src="../dist/dual-collection.js"></script>
-<script src="../dist/filter-behavior.js"></script>
+<script src="../dist/app.js"></script>
 <script>
   // delete database
   window.indexedDB.deleteDatabase('Prefix_customers');
@@ -64,7 +62,29 @@
   /**
    * Collections
    */
-  var collection = new DualCollection();
+  var Collection = app.Collection.extend({
+    extends: ['dual', 'filtered'],
+
+    model: app.Model.extend({
+      extends: ['dual', 'filtered'],
+    }),
+
+    name: 'customers',
+    url: 'http://localhost:3000/api/customers',
+
+    fields: ['first_name', 'last_name'],
+
+    matchMaker: function(model, query){
+      var filter = _.get(query, [0, 'prefix']);
+      if(filter === 'even' && model.id % 2 === 0){
+        return true;
+      }
+      return this.default.matchMaker.apply(this, arguments);
+    }
+
+  });
+
+  var collection = new Collection();
 
   /**
    * Filter View
@@ -80,7 +100,7 @@
 
     behaviors: {
       Filter: {
-        behaviorClass: FilterBehavior
+        behaviorClass: app.FilterBehavior
       }
     },
 
@@ -115,7 +135,7 @@
     }
   });
 
-  var ListView = InfiniteListView.extend({
+  var ListView = app.ListView.extend({
     className: 'list-infinite',
     childView: Item,
     emptyView: Empty,
@@ -156,7 +176,7 @@
       var self = this;
       this.collection.clear()
         .then( function() {
-          self.collection.resetNew();
+          self.collection.isNew(true);
         });
     }
   });

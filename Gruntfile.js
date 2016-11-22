@@ -37,49 +37,33 @@ module.exports = function(grunt) {
 
     webpack: {
       options: {
-        module: {
-          loaders: [
-            { test: /\.hbs$/, loader: 'raw-loader' }
-          ]
+        entry: {
+          app: './index.js'
         },
         resolve: {
           alias: {
             marionette: 'backbone.marionette',
+            'backbone.wreqr': 'backbone.radio',
+            radio: 'backbone.radio',
             underscore: 'lodash'
           },
+          modulesDirectories: ['node_modules']
         },
         externals: {
           jquery: 'jQuery',
           lodash: '_',
           underscore: '_',
           backbone: 'Backbone',
-          'backbone.marionette': 'Marionette',
-          handlebars: 'Handlebars'
+          'backbone.marionette': 'Marionette'
         },
+        cache: true,
         watch: true
       },
-      view: {
-        entry: './src/infinite-list-view.js',
+      build: {
         output: {
-          path: 'dist/',
-          filename: 'infinite-list-view.js',
-          library: 'InfiniteListView'
-        }
-      },
-      filtered: {
-        entry: './src/filter-behavior.js',
-        output: {
-          path: 'dist/',
-          filename: 'filter-behavior.js',
-          library: 'FilterBehavior'
-        }
-      },
-      dual: {
-        entry: './src/dual-collection.js',
-        output: {
-          path: 'dist/',
-          filename: 'dual-collection.js',
-          library: 'DualCollection'
+          path: './dist',
+          filename: '[name].js',
+          library: 'app'
         }
       }
     }
